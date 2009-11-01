@@ -1,9 +1,9 @@
 package Geo::GoogleEarth::Pluggable::Plugin::CircleByCenterPoint;
-use strict;
-use warnings;
 use Geo::Forward;
+use warnings;
+use strict;
 
-our $VERSION='0.01';
+our $VERSION='0.02';
 
 =head1 NAME
 
@@ -13,26 +13,8 @@ Geo::GoogleEarth::Pluggable::Plugin::CircleByCenterPoint - CircleByCenterPoint p
 
   use Geo::GoogleEarth::Pluggable;
   my $document=Geo::GoogleEarth::Pluggable->new;
-  my $polygon=$ducument->CircleByCenterPoint(
-                                name       => "My CircleByCenterPoint",
-                                radius     => 500,    #meters
-                                lat        => 39.001, #WGS-84 degrees
-                                lon        => -77.001,#WGS-84 degrees
-                                alt        => 0,      #reference see LookAt
-                               );
-
-=head1 TODO
-
-  my $polygon=$ducument->ArcByCenterPoint(
-                                name       => "My ArcByCenterPoint",
-                                radius     => 500,    #meters
-                                startAngle => 0,  #degrees CW from North
-                                endAngle   => 180,
-                                lat        => 39.001, #WGS-84 degrees
-                                lon        => -77.001,#WGS-84 degrees
-                                alt        => 0,      #reference see LookAt
-                                deltaAngle => 3.6,    #default
-                               );
+  my $circle=$document->CircleByCenterPoint(%data);
+  my $arc=$document->ArcByCenterPoint(%data);
 
 =head1 DESCRIPTION
 
@@ -42,11 +24,11 @@ Geo::GoogleEarth::Pluggable::Plugin::CircleByCenterPoint - CircleByCenterPoint p
 
 =head2 CircleByCenterPoint
 
-  my $polygon=$ducument->CircleByCenterPoint(
+  my $polygon=$document->CircleByCenterPoint(
                                 name       => "My CircleByCenterPoint",
-                                radius     => 1000,    #meters
-                                lat        => 39.001, #WGS-84 degrees
-                                lon        => -77.001,#WGS-84 degrees
+                                radius     => 1000,       #meters
+                                lat        =>  38.896079, #WGS-84 degrees
+                                lon        => -77.036554, #WGS-84 degrees
                                 alt        => 0,      #reference see LookAt
                                 deltaAngle => 7.2,    #default
                                );
@@ -57,30 +39,13 @@ sub CircleByCenterPoint {
   my $self=shift; #$self isa Geo::GoogleEarth::Pluggable::Folder object
   my %data=@_;
   $data{"startAngle"} ||= 0;
-  $data{"deltaAngle"} ||= 7.2;
-  $data{"deltaAngle"}   = 0.1 if $data{"deltaAngle"} < 0.1;
-  $data{"deltaAngle"}   = 90 if $data{"deltaAngle"} > 90;
-  my $interpolate       = int(360/$data{"deltaAngle"});
-  $data{"deltaAngle"}   = 360/$interpolate;
-  $data{"radius"}       = 1000 unless defined $data{"radius"};
-  $data{"alt"}        ||= 0;
-  my $coordinates=[];
-  my $gf=Geo::Forward->new;
-  foreach my $index (0 .. $interpolate) {
-    $data{"angle"}=$data{"startAngle"} + $index * $data{"deltaAngle"};
-    my ($lat,$lon,$baz)=$gf->forward(@data{qw{lat lon angle radius}});
-    push @$coordinates, [$lon, $lat, $data{"alt"}];
-  }
-  $data{"coordinates"}=$coordinates;
-  delete(@data{qw{lat lon angle radius alt deltaAngle startAngle}});
- #use Data::Dumper;
- #print Dumper([\%data]);
-  return $self->LinearRing(%data);
+  $data{"endAngle"} = $data{"startAngle"} + 360;
+  return $self->ArcByCenterPoint(%data);
 }
 
 =head2 ArcByCenterPoint
 
-  my $polygon=$ducument->ArcByCenterPoint(
+  my $polygon=$document->ArcByCenterPoint(
                                 name       => "My ArcByCenterPoint",
                                 radius     => 500,    #meters
                                 startAngle => 33.3,   #degrees CW/North
@@ -94,7 +59,34 @@ sub CircleByCenterPoint {
 =cut
 
 sub ArcByCenterPoint {
-  die("TODO");
+  my $self=shift; #$self isa Geo::GoogleEarth::Pluggable::Folder object
+  my %data=@_;
+  $data{"startAngle"} ||= 0;
+  $data{"endAngle"}   ||= 180;
+  $data{"deltaAngle"} ||= 7.2;
+  $data{"deltaAngle"}   = 0.1 if $data{"deltaAngle"} < 0.1;
+  $data{"deltaAngle"}   = 90 if $data{"deltaAngle"} > 90;
+  my $interpolate       = int(($data{"endAngle"} - $data{"startAngle"})/$data{"deltaAngle"});
+  $data{"deltaAngle"}   = ($data{"endAngle"} - $data{"startAngle"})/$interpolate;
+  $data{"radius"}       = 1000 unless defined $data{"radius"};
+  $data{"alt"}        ||= 0;
+  my $coordinates=[];
+  my $gf=Geo::Forward->new;
+  foreach my $index (0 .. $interpolate) {
+    $data{"angle"}=$data{"startAngle"} + $index * $data{"deltaAngle"};
+    my ($lat,$lon,$baz)=$gf->forward(@data{qw{lat lon angle radius}});
+    push @$coordinates, {lon=>$lon, lat=>$lat, alt=>$data{"alt"}};
+  }
+  $data{"coordinates"}=$coordinates;
+  my $isCircle=abs($data{"endAngle"} - $data{"startAngle"} - 360) <= 0.00001;
+  delete(@data{qw{lat lon angle radius alt deltaAngle startAngle endAngle}});
+ #use Data::Dumper;
+ #print Dumper([\%data]);
+  if ($isCircle) {
+    return $self->LinearRing(%data);
+  } else {
+    return $self->LineString(%data);
+  }
 }
 
 =head1 BUGS
