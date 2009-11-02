@@ -3,7 +3,7 @@ use Geo::Forward;
 use warnings;
 use strict;
 
-our $VERSION='0.02';
+our $VERSION='0.03';
 
 =head1 NAME
 
@@ -87,6 +87,34 @@ sub ArcByCenterPoint {
   } else {
     return $self->LineString(%data);
   }
+}
+
+=head2 BoundingBox
+
+  my $box=$folder->BoundingBox(
+                                 name => "My Box",
+                                 ulat => 39.1,
+                                 ulon => -77.1,
+                                 llat => 38.9,
+                                 llon => -77.3,
+                                 alt  => 0
+                              );
+
+=cut
+
+sub BoundingBox {
+  my $self=shift;
+  my %data=@_;
+  $data{"alt"} ||= 0;
+  $data{"coordinates"}=[
+                   {lat=>$data{"ulat"}, lon=>$data{"ulon"}, alt=>$data{"alt"}},
+                   {lat=>$data{"llat"}, lon=>$data{"ulon"}, alt=>$data{"alt"}},
+                   {lat=>$data{"llat"}, lon=>$data{"llon"}, alt=>$data{"alt"}},
+                   {lat=>$data{"ulat"}, lon=>$data{"llon"}, alt=>$data{"alt"}},
+                   {lat=>$data{"ulat"}, lon=>$data{"ulon"}, alt=>$data{"alt"}},
+                       ];
+  delete(@data{qw{ulat ulon llat llon}});
+  return $self->LinearRing(%data) 
 }
 
 =head1 BUGS
